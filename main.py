@@ -161,7 +161,7 @@ def main():
     # Webhook 시작
     app.run_webhook(
         listen="0.0.0.0",
-        port=8443,
+        port=8000,
         webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
     )
 
