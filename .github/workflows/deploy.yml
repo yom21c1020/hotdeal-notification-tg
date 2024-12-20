@@ -1,0 +1,25 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Build Telegram Bot Docker Image
+      run: docker build -t my-telegram-bot .
+
+    - name: Deploy Telegram Bot Container
+      run: |
+        docker stop my-telegram-bot || true
+        docker rm my-telegram-bot || true
+        docker run -d --name my-telegram-bot \
+          -e BOT_TOKEN=${{ secrets.BOT_TOKEN }} \
+          -v /path/to/db:/app/db \
+          -p 8000:8000 my-telegram-bot
