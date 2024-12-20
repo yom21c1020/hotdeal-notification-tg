@@ -12,13 +12,11 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 app = Flask(__name__)
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    with open('schema.sql', 'r') as f:
-        cursor.executescript(f.read())
-    conn.commit()
-    conn.close()
-
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        with open('schema.sql', 'r') as f:
+            cursor.executescript(f.read())
+        conn.commit()
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -31,14 +29,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
 
     # 사용자 등록
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR IGNORE INTO users (user_id, username, chat_id) VALUES (?, ?, ?)",
-        (user_id, username, chat_id)
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR IGNORE INTO users (user_id, username, chat_id) VALUES (?, ?, ?)",
+            (user_id, username, chat_id)
+        )
+        conn.commit()
 
     await update.message.reply_text("안녕하세요! 키워드를 등록하고 알림을 받아보세요. /add로 키워드를 추가해주세요.")
 
@@ -50,14 +47,13 @@ async def add_keyword(update: Update, context):
         await update.message.reply_text("추가할 키워드를 입력해 주세요!")
         return
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO keywords (user_id, keyword) VALUES ((SELECT id FROM users WHERE user_id = ?), ?)",
-        (user_id, keyword)
-    )
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO keywords (user_id, keyword) VALUES ((SELECT id FROM users WHERE user_id = ?), ?)",
+            (user_id, keyword)
+        )
+        conn.commit()
 
     await update.message.reply_text(f"키워드 '{keyword}'가 등록되었습니다.")
 
@@ -69,59 +65,53 @@ async def remove_keyword(update: Update, context):
         await update.message.reply_text("삭제할 키워드를 입력해 주세요!")
         return
     
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
     try:
-        cursor.execute("SELECT id FROM users WHERE user_id = ?", (user_id,))
-        result = cursor.fetchone()
-        
-        if not result:
-            await update.message.reply_text("등록되지 않은 사용자예요. /start로 등록해주세요.")
-            return
-        
-        user_id = result[0]
-        cursor.execute("SELECT keyword FROM keywords WHERE user_id = ?", (user_id,))
-        keyword_list = [row[0] for row in cursor.fetchall()]
-        
-        if not keyword_list:
-            await update.message.reply_text("등록된 키워드가 없어요. /add로 키워드를 추가해주세요.")
-            return
-        
-        if keyword not in keyword_list:
-            await update.message.reply_text("등록되지 않은 키워드예요. /add로 키워드를 추가해주세요.")
-            return
-        
-        cursor.execute("DELETE FROM keywords WHERE user_id = ? AND keyword = ?", (user_id, keyword))
-        conn.commit()
-        await update.message.reply_text(f"키워드 '{keyword}'가 삭제되었어요.")
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            
+            if not result:
+                await update.message.reply_text("등록되지 않은 사용자예요. /start로 등록해주세요.")
+                return
+            
+            user_id = result[0]
+            cursor.execute("SELECT keyword FROM keywords WHERE user_id = ?", (user_id,))
+            keyword_list = [row[0] for row in cursor.fetchall()]
+            
+            if not keyword_list:
+                await update.message.reply_text("등록된 키워드가 없어요. /add로 키워드를 추가해주세요.")
+                return
+            
+            if keyword not in keyword_list:
+                await update.message.reply_text("등록되지 않은 키워드예요. /add로 키워드를 추가해주세요.")
+                return
+            
+            cursor.execute("DELETE FROM keywords WHERE user_id = ? AND keyword = ?", (user_id, keyword))
+            conn.commit()
+            await update.message.reply_text(f"키워드 '{keyword}'가 삭제되었어요.")
         
     except Exception as e:
         await update.message.reply_text("키워드 삭제 중 오류가 발생했어요. 상세 내용은 다음과 같아요.")
         await update.message.reply_text(f"Error: '{e}'")
 
-    finally:
-        conn.close()
-
-
 async def handle_message(update: Update, context):
     message_text = update.message.text
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
 
-    # 모든 사용자의 키워드 조회
-    cursor.execute("SELECT user_id, keyword FROM keywords")
-    keywords = cursor.fetchall()
+        # 모든 사용자의 키워드 조회
+        cursor.execute("SELECT user_id, keyword FROM keywords")
+        keywords = cursor.fetchall()
 
-    for user_id, keyword in keywords:
-        if keyword in message_text:
-            cursor.execute(
-                "SELECT chat_id FROM users WHERE id = ?", (user_id,)
-            )
-            chat_id = cursor.fetchone()[0]
+        for user_id, keyword in keywords:
+            if keyword in message_text:
+                cursor.execute(
+                    "SELECT chat_id FROM users WHERE id = ?", (user_id,)
+                )
+                chat_id = cursor.fetchone()[0]
 
-            await context.bot.send_message(chat_id=chat_id, text=f"키워드 '{keyword}' 감지: {message_text}")
-
-    conn.close()
+                await context.bot.send_message(chat_id=chat_id, text=f"키워드 '{keyword}' 감지: {message_text}")
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -133,6 +123,8 @@ def webhook():
 def main():
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN not provided")
+    if not WEBHOOK_URL:
+        raise ValueError("WEBHOOK_URL not provided")
     
     # 데이터베이스 초기화
     if not os.path.exists(DB_PATH):
