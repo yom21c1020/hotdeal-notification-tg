@@ -22,5 +22,6 @@ jobs:
         docker rm my-telegram-bot || true
         docker run -d --name my-telegram-bot \
           -e BOT_TOKEN=${{ secrets.BOT_TOKEN }} \
+          -e WEBHOOK_URL=${{ secrets.WEBHOOK_URL }} \
           -v /path/to/db:/app/db \
           -p 8000:8000 my-telegram-bot

@@ -5,7 +5,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 import os
 
-WEBHOOK_URL = ''
+WEBHOOK_URL = os.getenv('WEBHOOK_URL')
 DB_PATH = '/app/db/database.db'
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 
