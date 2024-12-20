@@ -23,21 +23,30 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+logger = logging.getLogger(__name__)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     username = update.effective_user.username
     chat_id = update.effective_chat.id
 
-    # 사용자 등록
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR IGNORE INTO users (user_id, username, chat_id) VALUES (?, ?, ?)",
-            (user_id, username, chat_id)
-        )
-        conn.commit()
+    logger.info(f"Starting registration for user_id: {user_id}, username: {username}, chat_id: {chat_id}")
 
-    await update.message.reply_text("안녕하세요! 키워드를 등록하고 알림을 받아보세요. /add로 키워드를 추가해주세요.")
+    # 사용자 등록
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR IGNORE INTO users (user_id, username, chat_id) VALUES (?, ?, ?)",
+                (user_id, username, chat_id)
+            )
+            conn.commit()
+        await update.message.reply_text("안녕하세요! 키워드를 등록하고 알림을 받아보세요. /add로 키워드를 추가해주세요.")
+        logger.info(f"User {username} registered successfully.")
+
+    except Exception as e:
+        logger.error(f"Error registering user {username}: {e}")
+        await update.message.reply_text("사용자 등록 중 오류가 발생했어요. 다시 시도해 주세요.")
 
 async def add_keyword(update: Update, context):
     user_id = update.effective_user.id
@@ -56,6 +65,8 @@ async def add_keyword(update: Update, context):
         conn.commit()
 
     await update.message.reply_text(f"키워드 '{keyword}'가 등록되었습니다.")
+
+    logger.info(f"Keyword '{keyword}' added for user {update.effective_user.username}")
 
 async def remove_keyword(update: Update, context):
     user_id = update.effective_user.id
@@ -90,10 +101,15 @@ async def remove_keyword(update: Update, context):
             cursor.execute("DELETE FROM keywords WHERE user_id = ? AND keyword = ?", (user_id, keyword))
             conn.commit()
             await update.message.reply_text(f"키워드 '{keyword}'가 삭제되었어요.")
+            logger.info(f"Keyword '{keyword}' removed for user {update.effective_user.username}")
         
     except Exception as e:
         await update.message.reply_text("키워드 삭제 중 오류가 발생했어요. 상세 내용은 다음과 같아요.")
         await update.message.reply_text(f"Error: '{e}'")
+        if keyword:
+            logger.error(f"Error removing keyword '{keyword}' for user {update.effective_user.username}: {e}")
+        else:
+            logger.error(f"Error removing keyword for user {update.effective_user.username}: {e}")
 
 async def handle_message(update: Update, context):
     message_text = update.message.text
@@ -112,6 +128,8 @@ async def handle_message(update: Update, context):
                 chat_id = cursor.fetchone()[0]
 
                 await context.bot.send_message(chat_id=chat_id, text=f"키워드 '{keyword}' 감지: {message_text}")
+                logger.info(f"Keyword '{keyword}' detected in message: {message_text}")
+
 
 @app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def webhook():
@@ -129,6 +147,7 @@ def main():
     # 데이터베이스 초기화
     if not os.path.exists(DB_PATH):
         init_db()
+        logger.info("Database initialized successfully.")
 
     # Bot 구성
     app = ApplicationBuilder().token(BOT_TOKEN).build()
