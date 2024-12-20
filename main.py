@@ -25,7 +25,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context):
     user_id = update.effective_user.id
     username = update.effective_user.username
     chat_id = update.effective_chat.id
@@ -105,7 +105,7 @@ async def remove_keyword(update: Update, context):
         
     except Exception as e:
         await update.message.reply_text("키워드 삭제 중 오류가 발생했어요. 상세 내용은 다음과 같아요.")
-        await update.message.reply_text(f"Error: '{e}'")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Error: '{e}'")
         if keyword:
             logger.error(f"Error removing keyword '{keyword}' for user {update.effective_user.username}: {e}")
         else:
@@ -159,11 +159,11 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Webhook 시작
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=8000,
-        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
-    )
-
+#    app.run_webhook(
+#        listen="0.0.0.0",
+#        port=8000,
+#        webhook_url=f"{WEBHOOK_URL}/{BOT_TOKEN}"
+#    )
+    app.run_polling()
 if __name__ == '__main__':
     main()
