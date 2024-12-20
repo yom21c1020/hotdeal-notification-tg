@@ -40,7 +40,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
 
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
+    await update.message.reply_text("안녕하세요! 키워드를 등록하고 알림을 받아보세요. /add로 키워드를 추가해주세요.")
 
 async def add_keyword(update: Update, context):
     user_id = update.effective_user.id
@@ -60,6 +60,47 @@ async def add_keyword(update: Update, context):
     conn.close()
 
     await update.message.reply_text(f"키워드 '{keyword}'가 등록되었습니다.")
+
+async def remove_keyword(update: Update, context):
+    user_id = update.effective_user.id
+    keyword = ' '.join(context.args)
+
+    if not keyword:
+        await update.message.reply_text("삭제할 키워드를 입력해 주세요!")
+        return
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id FROM users WHERE user_id = ?", (user_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            await update.message.reply_text("등록되지 않은 사용자예요. /start로 등록해주세요.")
+            return
+        
+        user_id = result[0]
+        cursor.execute("SELECT keyword FROM keywords WHERE user_id = ?", (user_id,))
+        keyword_list = [row[0] for row in cursor.fetchall()]
+        
+        if not keyword_list:
+            await update.message.reply_text("등록된 키워드가 없어요. /add로 키워드를 추가해주세요.")
+            return
+        
+        if keyword not in keyword_list:
+            await update.message.reply_text("등록되지 않은 키워드예요. /add로 키워드를 추가해주세요.")
+            return
+        
+        cursor.execute("DELETE FROM keywords WHERE user_id = ? AND keyword = ?", (user_id, keyword))
+        conn.commit()
+        await update.message.reply_text(f"키워드 '{keyword}'가 삭제되었어요.")
+        
+    except Exception as e:
+        await update.message.reply_text("키워드 삭제 중 오류가 발생했어요. 상세 내용은 다음과 같아요.")
+        await update.message.reply_text(f"Error: '{e}'")
+
+    finally:
+        conn.close()
 
 
 async def handle_message(update: Update, context):
@@ -103,6 +144,7 @@ def main():
     # 핸들러 추가
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add_keyword))
+    app.add_handler(CommandHandler("remove", remove_keyword))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Webhook 시작
