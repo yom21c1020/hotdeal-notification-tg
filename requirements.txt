@@ -1,3 +1,2 @@
 python-telegram-bot
-sqlite3
 flask
